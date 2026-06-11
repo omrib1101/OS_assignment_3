@@ -101,7 +101,27 @@ sys_uptime(void)
 uint64
 sys_flip_display(void)
 {
-  return -1;
+  uint64 buf;
+  argaddr(0, &buf);
+
+  struct proc *p = myproc();
+  uint64 size = (uint64)GPU_FB_PAGES * PGSIZE;
+
+  // Buffer must be non-zero, page-aligned, and not wrap past the address space.
+  if(buf == 0 || buf % PGSIZE != 0 || buf + size < buf || buf + size > MAXVA)
+    return -1;
+
+  // Every page of the buffer must be mapped with user permission.
+  for(uint64 a = buf; a < buf + size; a += PGSIZE){
+    if(walkaddr(p->pagetable, a) == 0)
+      return -1;
+  }
+
+  // Re-point the GPU at this buffer's physical pages (no pixel copy).
+  if(virtio_gpu_flip(p->pagetable, buf) < 0)
+    return -1;
+
+  return 0;
 }
 
 // sys_map_display: map the GPU's kernel framebuffer pages (fb[]) directly

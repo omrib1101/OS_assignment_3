@@ -559,6 +559,32 @@ virtio_gpu_fb_pa(int i)
     return (uint64)fb[i];
 }
 
+// ── Public: zero-copy page flip ──────────────────────────────────────
+// Re-point the display resource's backing store at the user buffer that
+// starts at virtual address va in the given page table.  Walks the page
+// table page-by-page (user pages are not physically contiguous) to gather
+// the physical addresses, then detaches the old backing and attaches the
+// new one.  Returns 0 on success, -1 if any page is not user-mapped.
+int
+virtio_gpu_flip(pagetable_t pagetable, uint64 va)
+{
+    // Static (not on the kernel stack): FB_PAGES entries is ~4.7 KB.
+    static struct virtio_gpu_mem_entry flip_entries[FB_PAGES];
+
+    for (int i = 0; i < FB_PAGES; i++) {
+        uint64 pa = walkaddr(pagetable, va + (uint64)i * PGSIZE);
+        if (pa == 0)
+            return -1;
+        flip_entries[i].addr = pa;
+        flip_entries[i].length = PGSIZE;
+        flip_entries[i].padding = 0;
+    }
+
+    gpu_cmd_detach();
+    gpu_cmd_attach(flip_entries, FB_PAGES);
+    return 0;
+}
+
 // ── GPU daemon ────────────────────────────────────────────────────────
 // Kernel process started by kproc_create().  Wakes every DISPLAY_DAEMON_TICKS
 // timer ticks and issues TRANSFER_TO_HOST_2D + RESOURCE_FLUSH so that
