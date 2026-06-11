@@ -548,6 +548,17 @@ void virtio_gpu_commit(void)
     gpu_transfer_flush();
 }
 
+// ── Public: physical address of framebuffer page i ───────────────────
+// fb[i] is a kalloc'd kernel page; xv6 direct-maps RAM so its kernel VA
+// equals its physical address.  Returns 0 if i is out of range.
+uint64
+virtio_gpu_fb_pa(int i)
+{
+    if (i < 0 || i >= FB_PAGES)
+        return 0;
+    return (uint64)fb[i];
+}
+
 // ── GPU daemon ────────────────────────────────────────────────────────
 // Kernel process started by kproc_create().  Wakes every DISPLAY_DAEMON_TICKS
 // timer ticks and issues TRANSFER_TO_HOST_2D + RESOURCE_FLUSH so that

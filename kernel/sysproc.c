@@ -116,5 +116,42 @@ sys_flip_display(void)
 uint64
 sys_map_display(void)
 {
-  return -1;
+  uint64 addr;
+  argaddr(0, &addr);
+
+  struct proc *p = myproc();
+  uint64 size = (uint64)GPU_FB_PAGES * PGSIZE;
+
+  // Pick the target VA: auto-select above p->sz, or use the caller's.
+  if(addr == 0){
+    addr = PGROUNDUP(p->sz);
+  } else if(addr % PGSIZE != 0){
+    return -1;
+  }
+
+  // Region must fit below the trapframe and not wrap around.
+  if(addr + size > TRAPFRAME || addr + size < addr)
+    return -1;
+
+  // Reject collisions with any existing mapping.
+  for(uint64 a = addr; a < addr + size; a += PGSIZE){
+    pte_t *pte = walk(p->pagetable, a, 0);
+    if(pte != 0 && (*pte & PTE_V))
+      return -1;
+  }
+
+  // Map each kernel fb[] page into the user page table (PTE_U|R|W).
+  for(int i = 0; i < GPU_FB_PAGES; i++){
+    uint64 pa = virtio_gpu_fb_pa(i);
+    if(pa == 0 ||
+       mappages(p->pagetable, addr + (uint64)i * PGSIZE, PGSIZE, pa,
+                PTE_U | PTE_R | PTE_W) != 0){
+      // Undo partial mapping; do_free=0 since fb pages are kernel-owned.
+      if(i > 0)
+        uvmunmap(p->pagetable, addr, i, 0);
+      return -1;
+    }
+  }
+
+  return addr;
 }
