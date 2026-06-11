@@ -124,6 +124,7 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  p->dispmap_va = 0;
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -158,6 +159,11 @@ freeproc(struct proc *p)
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
+  // Tear down a mapped GPU framebuffer, if any. do_free=0: the fb pages
+  // are kernel-owned and must not be freed here.
+  if(p->pagetable && p->dispmap_va)
+    uvmunmap(p->pagetable, p->dispmap_va, GPU_FB_PAGES, 0);
+  p->dispmap_va = 0;
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
   p->pagetable = 0;

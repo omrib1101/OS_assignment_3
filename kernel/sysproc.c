@@ -153,5 +153,7 @@ sys_map_display(void)
     }
   }
 
+  // Remember the VA so freeproc() can tear the mapping down at exit.
+  p->dispmap_va = addr;
   return addr;
 }
