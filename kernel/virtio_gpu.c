@@ -585,6 +585,25 @@ virtio_gpu_flip(pagetable_t pagetable, uint64 va)
     return 0;
 }
 
+// ── Public: restore the device backing to the kernel fb[] ────────────
+// Called when a process that flipped to its own buffer exits, so the
+// device never reads the now-freed user pages.  Re-points the backing at
+// the kernel-owned fb[] pages.
+void
+virtio_gpu_restore(void)
+{
+    static struct virtio_gpu_mem_entry fb_entries[FB_PAGES];
+
+    for (int i = 0; i < FB_PAGES; i++) {
+        fb_entries[i].addr = (uint64)fb[i];
+        fb_entries[i].length = PGSIZE;
+        fb_entries[i].padding = 0;
+    }
+
+    gpu_cmd_detach();
+    gpu_cmd_attach(fb_entries, FB_PAGES);
+}
+
 // ── GPU daemon ────────────────────────────────────────────────────────
 // Kernel process started by kproc_create().  Wakes every DISPLAY_DAEMON_TICKS
 // timer ticks and issues TRANSFER_TO_HOST_2D + RESOURCE_FLUSH so that

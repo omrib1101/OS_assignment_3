@@ -125,6 +125,7 @@ found:
   p->pid = allocpid();
   p->state = USED;
   p->dispmap_va = 0;
+  p->flipped = 0;
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -159,6 +160,11 @@ freeproc(struct proc *p)
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
+  // If this proc flipped the device to its own buffer, re-point the
+  // device at the kernel fb[] before freeing the user pages below.
+  if(p->flipped)
+    virtio_gpu_restore();
+  p->flipped = 0;
   // Tear down a mapped GPU framebuffer, if any. do_free=0: the fb pages
   // are kernel-owned and must not be freed here.
   if(p->pagetable && p->dispmap_va)

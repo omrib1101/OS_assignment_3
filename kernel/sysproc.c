@@ -121,6 +121,8 @@ sys_flip_display(void)
   if(virtio_gpu_flip(p->pagetable, buf) < 0)
     return -1;
 
+  // Device backing now points at this proc's pages; freeproc must restore.
+  p->flipped = 1;
   return 0;
 }
 
